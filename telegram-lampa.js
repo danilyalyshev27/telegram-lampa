@@ -1,16 +1,22 @@
+// === Настройки ===
 const TELEGRAM_BOT_TOKEN = '8490633834:AAH_st-gObgXCc8eHFo52lihGf5iartiG94';
 const CHAT_ID = '7816280190';
 
+// === Состояние ===
 let currentData = {
   title: '',
   season: '',
   episode: '',
   startTime: 0
 };
+
 let isPlaying = false;
 
+// === Функция отправки Telegram-сообщений ===
 function sendTelegram(message) {
-  fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+  fetch(url, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
@@ -18,34 +24,47 @@ function sendTelegram(message) {
       text: message,
       parse_mode: 'HTML'
     })
-  }).catch(err => console.error('Telegram error:', err));
+  }).catch(err => {
+    console.error('[Telegram] Ошибка отправки:', err);
+  });
 }
 
+// === Обработчик начала воспроизведения ===
 function onStart(data) {
+  if (!data || typeof data !== 'object') return;
+
   currentData.title = data.title || 'Неизвестный фильм';
   currentData.season = data.season ? `Сезон ${data.season}` : '';
   currentData.episode = data.episode ? `Эпизод ${data.episode}` : '';
   currentData.startTime = Date.now();
   isPlaying = true;
 
-  sendTelegram('▶️ Запущено: ' + [currentData.title, currentData.season, currentData.episode].filter(Boolean).join(' '));
+  // Отправка уведомления в Telegram о запуске фильма
+  const message = `💡 <b>Лампа запущена!</b>\n▶️ <b>Запущено</b>: ${[currentData.title, currentData.season, currentData.episode].filter(Boolean).join(' ')}`;
+  sendTelegram(message);
+
+  console.log('[Player] Воспроизведение начато:', message);
 }
 
-function onStop(data) {
+// === Обработчик остановки воспроизведения ===
+function onStop() {
   if (!isPlaying) return;
 
-  const currentTimeMs = Date.now();
-  const diffMs = currentTimeMs - currentData.startTime;
-  const seconds = Math.floor(diffMs / 1000);
-  const minutes = Math.floor(seconds / 60);
+  const durationMs = Date.now() - currentData.startTime;
+  const minutes = Math.floor(durationMs / 60000);
 
-  sendTelegram(
-    '⏹️ Вышел: ' + [currentData.title, currentData.season, currentData.episode].filter(Boolean).join(' ') +
-    `<br>Минут: ${minutes}`
-  );
+  const message = `⏹️ <b>Остановлено</b>: ${[currentData.title, currentData.season, currentData.episode].filter(Boolean).join(' ')}\n<b>Просмотрено</b>: ${minutes} мин`;
+  sendTelegram(message);
 
   isPlaying = false;
+  console.log('[Player] Воспроизведение остановлено:', message);
 }
 
-Lampa.Player.on('play', onStart);
-Lampa.Player.on('stop', onStop);
+// === Подписка на события Lampa Player ===
+if (typeof Lampa !== 'undefined' && Lampa.Player) {
+  Lampa.Player.on('play', onStart);
+  Lampa.Player.on('stop', onStop);
+  console.log('[Plugin] Плагин Telegram Tracker подключен.');
+} else {
+  console.warn('[Plugin] Lampa.Player не найден.');
+}
