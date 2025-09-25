@@ -33,14 +33,32 @@ function sendTelegram(message) {
 function onStart(data) {
   if (!data || typeof data !== 'object') return;
 
-  currentData.title = data.title || 'Неизвестный фильм';
-  currentData.season = data.season ? `Сезон ${data.season}` : '';
-  currentData.episode = data.episode ? `Эпизод ${data.episode}` : '';
+  // Корректно определяем, что за тип объекта data приходит из Lampa
+  let title = '';
+  let season = '';
+  let episode = '';
+
+  // Для плагина Lampa часто данные лежат в data.movie или data.episode
+  if (data.movie) {
+    title = data.movie.original_title || data.movie.title || 'Неизвестный фильм';
+    if (data.episode) {
+      season = data.episode.season ? `Сезон ${data.episode.season}` : '';
+      episode = data.episode.episode ? `Эпизод ${data.episode.episode}` : '';
+    }
+  } else {
+    title = data.title || 'Неизвестный фильм';
+    season = data.season ? `Сезон ${data.season}` : '';
+    episode = data.episode ? `Эпизод ${data.episode}` : '';
+  }
+
+  currentData.title = title;
+  currentData.season = season;
+  currentData.episode = episode;
   currentData.startTime = Date.now();
   isPlaying = true;
 
   // Отправка уведомления в Telegram о запуске фильма
-  const message = `💡 <b>Лампа запущена!</b>\n▶️ <b>Запущено</b>: ${[currentData.title, currentData.season, currentData.episode].filter(Boolean).join(' ')}`;
+  const message = `💡 <b>Лампа запущена!</b>\n▶️ <b>Запущено</b>: ${[title, season, episode].filter(Boolean).join(' ')}`;
   sendTelegram(message);
 
   console.log('[Player] Воспроизведение начато:', message);
@@ -60,11 +78,18 @@ function onStop() {
   console.log('[Player] Воспроизведение остановлено:', message);
 }
 
-// === Подписка на события Lampa Player ===
-if (typeof Lampa !== 'undefined' && Lampa.Player) {
-  Lampa.Player.on('play', onStart);
-  Lampa.Player.on('stop', onStop);
-  console.log('[Plugin] Плагин Telegram Tracker подключен.');
-} else {
-  console.warn('[Plugin] Lampa.Player не найден.');
-}
+// === Подключение как плагин для Lampa ===
+(function(){
+  // Проверяем наличие Lampa и Player
+  function tryIntegrate() {
+    if (typeof Lampa !== 'undefined' && Lampa.Player && typeof Lampa.Player.on === 'function') {
+      Lampa.Player.on('play', onStart);
+      Lampa.Player.on('stop', onStop);
+      console.log('[Plugin] Telegram Lampa Tracker подключен.');
+    } else {
+      console.warn('[Plugin] Lampa.Player не найден. Жду...');
+      setTimeout(tryIntegrate, 2000);
+    }
+  }
+  tryIntegrate();
+})();
